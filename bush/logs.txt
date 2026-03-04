@@ -1,0 +1,31 @@
+    2  git status
+    3  touch ./bash-practice/ .gitkeep
+    4  git status
+    6  git init
+    7  git clone  https://github.com/Yana5193/k1
+    8  git clone https://github.com/Yana5193/k1
+    9  git clone git@github.com:Yana5193/k1
+   12  git add script.py
+   13  git commit -m"add function"
+   14  git commit -m "new add function and change test"
+   15  git add script.py
+   16  git commit -m "new add function and change test"
+   17  git push origin -u master
+   21  echo "/.venv" >> .gitignore 
+   22  cat .gitignore
+   23  git commit -a -m "add requerements to gitignore for script"
+   24  git push origin -u master
+   25  git switch -c bush
+   28  touch .gitkeep
+   29  git status
+   30  git add bush
+   31  git add bush/
+   33  git add bush/
+   34  git status
+   35  git commit -m "Started bash-practice lesson(created directory for lesson)"
+   46  history|grep git| echo 1>>logs.txt
+   48  history | grep git >> logs.txt~
+   52  history | grep git 
+   53  history | grep git 2 >> logs.txt~
+   55  history | grep git > logs.txt~
+   57  history | grep git > logs.txt
