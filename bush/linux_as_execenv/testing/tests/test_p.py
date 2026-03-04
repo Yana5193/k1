@@ -72,4 +72,4 @@ if name == '__main__':
     test_addition_reasonable()
     test_add_something_reasonable()
     test_tax_calculation()
-    test_tax_calculation_fight_pecticides(
+    test_tax_calculation_fight_pecticides()
