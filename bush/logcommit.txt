@@ -1,0 +1,6 @@
+git add logs.txt
+git commit -m "Add history command in logs"
+[bush 0e4e80b] Add history command in logs
+ 1 file changed, 31 insertions(+)
+ create mode 100644 bush/logs.txt
+
