@@ -1,30 +1,18 @@
 import os
-
 import httpx
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-
 app = FastAPI(title="Order Service")
 
-
-PRODUCT_SERVICE_URL = os.getenv(
-    "PRODUCT_SERVICE_URL",
-    "http://127.0.0.1:8001",
-)
-
+# Адреса сервисов
+PRODUCT_SERVICE_URL = os.getenv("PRODUCT_SERVICE_URL", "http://product-service:8000")
+DISCOUNT_SERVICE_URL = os.getenv("DISCOUNT_SERVICE_URL", "http://discount-service:8000")
 
 class OrderRequest(BaseModel):
     product_id: str
     quantity: int = Field(gt=0)
-
-
-class OrderResponse(BaseModel):
-    product_id: str
-    quantity: int
-    unit_price: float
-    total: float
-
+    promo_code: str = None 
 
 class ProductFromService(BaseModel):
     id: str
@@ -32,14 +20,8 @@ class ProductFromService(BaseModel):
     price: float
     available: bool
 
-
-@app.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok", "service": "order-service"}
-
-
-@app.post("/orders", response_model=OrderResponse)
-async def create_order(order: OrderRequest) -> OrderResponse:
+@app.post("/orders")
+async def create_order(order: OrderRequest):
     product = await fetch_product(order.product_id)
 
     if not product.available:
@@ -47,40 +29,47 @@ async def create_order(order: OrderRequest) -> OrderResponse:
             status_code=400,
             detail=f"Product '{order.product_id}' is not available",
         )
+    async with httpx.AsyncClient(timeout=3.0) as client:
+        try:
+            d_resp = await client.post(
+                f"{DISCOUNT_SERVICE_URL}/discounts/calculate",
+                json={
+                    "product_id": order.product_id,
+                    "quantity": order.quantity,
+                    "price": product.price,
+                    "promo_code": order.promo_code
+                }
+            )
+            d_resp.raise_for_status()
+            discount_data = d_resp.json()
+        except Exception:
+            discount_data = {"discount_percent": 0, "reason": "Service unavailable"}
 
-    total = product.price * order.quantity
+    # 3. Считаем итог
+    pct = discount_data["discount_percent"]
+    total_before = product.price * order.quantity
+    discount_amount = total_before * (pct / 100)
+    final_price = total_before - discount_amount
 
-    return OrderResponse(
-        product_id=product.id,
-        quantity=order.quantity,
-        unit_price=product.price,
-        total=total,
-    )
-
+    return {
+        "product_id": product.id,
+        "quantity": order.quantity,
+        "unit_price": product.price,
+        "total_before_discount": total_before,
+        "discount_percent": f"{pct}%",
+        "discount_amount": discount_amount,
+        "final_price": final_price,
+        "reason": discount_data["reason"]
+    }
 
 async def fetch_product(product_id: str) -> ProductFromService:
     url = f"{PRODUCT_SERVICE_URL}/products/{product_id}"
-
     try:
         async with httpx.AsyncClient(timeout=3.0) as client:
             response = await client.get(url)
-
+            if response.status_code == 404:
+                raise HTTPException(status_code=404, detail="Product not found")
+            response.raise_for_status()
+            return ProductFromService.model_validate(response.json())
     except httpx.RequestError as exc:
-        raise HTTPException(
-            status_code=503,
-            detail=f"Product service is unavailable: {exc}",
-        ) from exc
-
-    if response.status_code == 404:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Product '{product_id}' was not found",
-        )
-
-    if response.status_code >= 400:
-        raise HTTPException(
-            status_code=502,
-            detail="Product service returned an unexpected error",
-        )
-
-    return ProductFromService.model_validate(response.json())
+        raise HTTPException(status_code=503, detail=f"Service unavailable: {exc}")
